@@ -12,7 +12,83 @@ Automatically detects Google Docs / Sheets / Slides links in Gmail and lets you 
 
 ---
 
-## Setup
+## Fixing OAuth errors
+
+### Error: "bad client id: {0}"
+
+This means the OAuth 2.0 client in Google Cloud Console is not configured for this Chrome extension.
+
+**Steps to fix:**
+
+1. Go to [Google Cloud Console › Credentials](https://console.cloud.google.com/apis/credentials)
+2. Click the OAuth 2.0 client `779013325294-81h2mgvd61borau1bfrsviv922cqee8j`
+3. Confirm **Application type** is **Chrome Extension** (not Web Application)
+4. Under **Item ID**, enter the extension ID: `gfhacaanbnknlecpaipegmlepabecchh`
+5. Save
+
+> If the client was created as Web Application you must delete it and create a new one with type Chrome Extension — the type cannot be changed after creation.
+
+---
+
+### Error: "OAuth2 request failed: Connection failed (-106)"
+
+This cascades from the client ID error above, but can also mean the `manifest.json` `key` field is missing, causing Chrome to derive a different extension ID than the one registered in Google Cloud Console.
+
+**Fix: add the `key` field to `manifest.json`**
+
+The `key` pins the extension to ID `gfhacaanbnknlecpaipegmlepabecchh` regardless of install path or machine.
+
+#### How to get your key (one-time, ~2 minutes)
+
+**Method A — Pack extension (recommended)**
+
+1. Open `chrome://extensions`
+2. Click **Pack extension**
+3. Browse to this folder, leave Private key blank, click **Pack Extension**
+4. Chrome creates `doclink-extension.crx` and `doclink-extension.pem` next to this folder
+5. Open `doclink-extension.pem` in a text editor — it looks like:
+   ```
+   -----BEGIN PRIVATE KEY-----
+   MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC...
+   -----END PRIVATE KEY-----
+   ```
+6. Run this command to extract the public key in the format Chrome expects:
+   ```bash
+   openssl rsa -in doclink-extension.pem -pubout -outform DER 2>/dev/null | base64 | tr -d '\n'
+   ```
+7. Paste the output as the `"key"` value in `manifest.json`
+
+**Method B — DevTools console**
+
+1. Open `chrome://extensions`, enable Developer mode
+2. Open DevTools on the extensions page (right-click › Inspect)
+3. Run in the console:
+   ```js
+   chrome.management.get('gfhacaanbnknlecpaipegmlepabecchh', e => console.log(e))
+   ```
+   This shows the extension info but not the key directly.
+
+**Method C — Chrome preferences file**
+
+- **Mac:** `~/Library/Application Support/Google/Chrome/Default/Preferences`
+- **Windows:** `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Preferences`
+- **Linux:** `~/.config/google-chrome/Default/Preferences`
+
+Open in a text editor, search for `gfhacaanbnknlecpaipegmlepabecchh`, find the `"manifest"` object inside it — it contains a `"key"` field. Copy that value into `manifest.json`.
+
+#### After getting the key
+
+Replace `PASTE_YOUR_BASE64_KEY_HERE` in `manifest.json`:
+
+```json
+"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...",
+```
+
+Then **reload the extension** in `chrome://extensions`.
+
+---
+
+## Initial setup
 
 ### 1. Create a Google Cloud Project & OAuth credentials
 
@@ -21,27 +97,17 @@ Automatically detects Google Docs / Sheets / Slides links in Gmail and lets you 
 3. Enable the **Gmail API** under *APIs & Services › Library*
 4. Go to *APIs & Services › Credentials* → **Create Credentials → OAuth 2.0 Client ID**
 5. Application type: **Chrome Extension**
-6. For the **Extension ID**, first load the unpacked extension (see step 3 below) and copy its ID from `chrome://extensions`
-7. Copy the generated **Client ID**
+6. Item ID (Extension ID): `gfhacaanbnknlecpaipegmlepabecchh`
+7. Copy the generated **Client ID** — already set in `manifest.json`
 
-### 2. Add your Client ID to `manifest.json`
-
-Open `manifest.json` and replace:
-
-```json
-"client_id": "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com"
-```
-
-with your actual client ID.
-
-### 3. Load the extension in Chrome
+### 2. Load the extension in Chrome
 
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked** and select this folder
 4. The DocLink icon appears in your toolbar
 
-### 4. Generate proper icons (optional)
+### 3. Generate proper icons (optional)
 
 ```bash
 # Requires rsvg-convert, Inkscape, or ImageMagick

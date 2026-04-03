@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "description": "Automatically detect Google Docs/Sheets/Slides links in Gmail and organize them into custom folders.",
 
+  "_README_key": "REQUIRED — paste the base64 key from Chrome here to lock extension ID gfhacaanbnknlecpaipegmlepabecchh. See README › How to get the key.",
+  "key": "PASTE_YOUR_BASE64_KEY_HERE",
+
   "permissions": [
     "identity",
     "storage",

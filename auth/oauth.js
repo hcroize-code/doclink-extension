@@ -5,6 +5,30 @@
  * The token is cached by Chrome automatically.
  */
 
+// Human-readable translations of Chrome's opaque identity errors.
+const ERROR_HINTS = {
+  'bad client id':
+    'OAuth client not configured. In Google Cloud Console: ' +
+    'APIs & Services › Credentials › your OAuth client › ' +
+    'make sure it is type "Chrome Extension" and Application ID = ' +
+    chrome.runtime.id,
+  'OAuth2 not granted or revoked':
+    'Access was revoked. Click Sign in to reconnect.',
+  'Connection failed':
+    'Could not reach Google\'s auth servers (error -106). ' +
+    'Check network connectivity, or ensure the manifest "key" field ' +
+    'matches the extension ID registered in Google Cloud Console.',
+  'The user did not approve access':
+    'Sign-in was cancelled.',
+};
+
+function humanizeError(raw) {
+  for (const [fragment, hint] of Object.entries(ERROR_HINTS)) {
+    if (raw.includes(fragment)) return hint;
+  }
+  return raw;
+}
+
 /**
  * Returns a valid access token, prompting the user to sign-in if needed.
  * @param {boolean} interactive  Whether to show the consent screen.
@@ -13,7 +37,8 @@ export async function getToken(interactive = true) {
   return new Promise((resolve, reject) => {
     chrome.identity.getAuthToken({ interactive }, (token) => {
       if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
+        const raw = chrome.runtime.lastError.message ?? 'Unknown error';
+        reject(new Error(humanizeError(raw)));
       } else {
         resolve(token);
       }

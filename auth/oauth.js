@@ -23,8 +23,8 @@
 const EXTENSION_CLIENT_ID =
   '779013325294-81h2mgvd61borau1bfrsviv922cqee8j.apps.googleusercontent.com';
 
-// ← Paste your Desktop app client ID here after creating it in Google Cloud Console
-const DESKTOP_CLIENT_ID = 'YOUR_DESKTOP_APP_CLIENT_ID.apps.googleusercontent.com';
+const DESKTOP_CLIENT_ID =
+  '779013325294-rqnil7qjaf4cqi1l9fvjg706c1a550i3.apps.googleusercontent.com';
 
 const SCOPE         = 'https://www.googleapis.com/auth/gmail.readonly';
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';

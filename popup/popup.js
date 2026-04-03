@@ -41,10 +41,31 @@ const toast           = document.getElementById('toast');
   if (signedIn) {
     showApp();
     await refresh();
+    // Trigger a quick scan immediately so the popup is never stale
+    chrome.runtime.sendMessage({ type: 'SCAN_NOW' }).catch(() => {});
+    startPolling();
   } else {
     showAuthBanner();
   }
 })();
+
+/* ── Auto-refresh ────────────────────────────────────────────────────── */
+
+// Refresh the UI whenever the service worker writes new docs to storage
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && (changes.doclink_docs || changes.doclink_folders)) {
+    refresh();
+  }
+});
+
+// Poll every 30 s while the popup is open (triggers background quick scan)
+let pollTimer;
+function startPolling() {
+  pollTimer = setInterval(() => {
+    chrome.runtime.sendMessage({ type: 'SCAN_NOW' }).catch(() => {});
+  }, 30_000);
+}
+window.addEventListener('unload', () => clearInterval(pollTimer));
 
 /* ── Auth ────────────────────────────────────────────────────────────── */
 
@@ -65,6 +86,7 @@ signInBtn.addEventListener('click', async () => {
     showApp();
     await triggerScan();
     await refresh();
+    startPolling();
   } catch (e) {
     showToast('Échec de la connexion : ' + e.message);
   }

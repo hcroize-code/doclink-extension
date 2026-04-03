@@ -7,9 +7,10 @@
  *   lastSyncAt: ISO string
  */
 
-const FOLDERS_KEY = 'doclink_folders';
-const DOCS_KEY    = 'doclink_docs';
-const SYNC_KEY    = 'doclink_lastSyncAt';
+const FOLDERS_KEY  = 'doclink_folders';
+const DOCS_KEY     = 'doclink_docs';
+const SYNC_KEY     = 'doclink_lastSyncAt';
+const HISTORY_KEY  = 'doclink_historyId';
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
 
@@ -112,4 +113,14 @@ export async function getLastSyncAt() {
 
 export async function setLastSyncAt(iso) {
   await set(SYNC_KEY, iso);
+}
+
+/* ── Gmail history ID (for incremental scans) ────────────────────────── */
+
+export async function getLastHistoryId() {
+  return (await get(HISTORY_KEY)) ?? null;
+}
+
+export async function setLastHistoryId(id) {
+  await set(HISTORY_KEY, String(id));
 }

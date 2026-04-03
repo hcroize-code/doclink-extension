@@ -9,7 +9,8 @@
   "permissions": [
     "identity",
     "storage",
-    "alarms"
+    "alarms",
+    "notifications"
   ],
 
   "host_permissions": [

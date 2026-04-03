@@ -1,0 +1,487 @@
+/* DocLink Popup — Gmail-native design */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:        #1a73e8;
+  --blue-hover:  #1765cc;
+  --blue-light:  #e8f0fe;
+  --gray-bg:     #f1f3f4;
+  --gray-border: #dadce0;
+  --gray-text:   #5f6368;
+  --dark:        #202124;
+  --white:       #ffffff;
+  --red:         #d93025;
+  --green:       #188038;
+  --radius:      4px;
+  --font:        'Google Sans', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  width: 420px;
+  min-height: 500px;
+  max-height: 600px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--dark);
+  background: var(--white);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--gray-border);
+  background: var(--white);
+  flex-shrink: 0;
+}
+
+.header-logo {
+  width: 24px;
+  height: 24px;
+  background: var(--blue);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--dark);
+  flex: 1;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-text);
+  font-size: 16px;
+  transition: background 0.15s;
+}
+
+.icon-btn:hover { background: var(--gray-bg); }
+
+.sync-btn.spinning svg { animation: spin 0.9s linear infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Auth banner ─────────────────────────────────────────────────────── */
+
+.auth-banner {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 24px;
+  text-align: center;
+  flex: 1;
+}
+
+.auth-banner.visible { display: flex; }
+
+.auth-banner svg { color: var(--blue); }
+
+.auth-banner p {
+  color: var(--gray-text);
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+
+.sidebar {
+  width: 160px;
+  border-right: 1px solid var(--gray-border);
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  flex-shrink: 0;
+}
+
+.sidebar-section {
+  padding: 8px 0;
+}
+
+.sidebar-label {
+  padding: 4px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--gray-text);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 16px;
+  cursor: pointer;
+  border-radius: 0 20px 20px 0;
+  margin-right: 8px;
+  color: var(--dark);
+  transition: background 0.15s;
+  user-select: none;
+  font-size: 13px;
+}
+
+.nav-item:hover { background: var(--gray-bg); }
+
+.nav-item.active {
+  background: var(--blue-light);
+  color: var(--blue);
+  font-weight: 500;
+}
+
+.nav-item .nav-icon { font-size: 16px; flex-shrink: 0; }
+
+.nav-item .nav-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-item .nav-count {
+  font-size: 11px;
+  background: var(--blue);
+  color: white;
+  border-radius: 10px;
+  padding: 1px 6px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.nav-item.active .nav-count { background: var(--blue); }
+
+.folder-delete-btn {
+  opacity: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--gray-text);
+  padding: 2px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.nav-item:hover .folder-delete-btn { opacity: 1; }
+.folder-delete-btn:hover { color: var(--red); }
+
+.add-folder-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 16px;
+  cursor: pointer;
+  color: var(--blue);
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  border-radius: 0 20px 20px 0;
+  margin-right: 8px;
+  transition: background 0.15s;
+}
+
+.add-folder-btn:hover { background: var(--blue-light); }
+
+/* ── Main content ────────────────────────────────────────────────────── */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-header {
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--gray-border);
+  flex-shrink: 0;
+}
+
+.main-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dark);
+}
+
+.main-subtitle {
+  font-size: 11px;
+  color: var(--gray-text);
+  margin-top: 2px;
+}
+
+.doc-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.doc-list::-webkit-scrollbar { width: 4px; }
+.doc-list::-webkit-scrollbar-track { background: transparent; }
+.doc-list::-webkit-scrollbar-thumb { background: var(--gray-border); border-radius: 2px; }
+
+/* ── Empty state ─────────────────────────────────────────────────────── */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--gray-text);
+  text-align: center;
+}
+
+.empty-state svg { opacity: 0.4; }
+.empty-state p { font-size: 12px; line-height: 1.5; }
+
+/* ── Doc card ────────────────────────────────────────────────────────── */
+
+.doc-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 10px;
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+  border: 1px solid var(--gray-border);
+  background: var(--white);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.doc-card:hover {
+  box-shadow: 0 1px 6px rgba(60,64,67,0.15);
+  border-color: #bdc1c6;
+}
+
+.doc-type-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+  margin-top: 1px;
+}
+
+.doc-info { flex: 1; min-width: 0; }
+
+.doc-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+}
+
+.doc-title:hover { text-decoration: underline; }
+
+.doc-meta {
+  font-size: 11px;
+  color: var(--gray-text);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-meta span + span::before { content: ' · '; }
+
+.doc-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+}
+
+.btn-primary:hover {
+  background: var(--blue-hover);
+  box-shadow: 0 1px 3px rgba(26,115,232,0.4);
+}
+
+.btn-outlined {
+  background: white;
+  color: var(--blue);
+  border-color: var(--gray-border);
+}
+
+.btn-outlined:hover { background: var(--blue-light); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--gray-text);
+  border-color: transparent;
+}
+
+.btn-ghost:hover { background: var(--gray-bg); color: var(--dark); }
+
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border-color: transparent;
+}
+
+.btn-danger:hover { background: #fce8e6; }
+
+/* ── Move-to-folder dropdown ─────────────────────────────────────────── */
+
+.dropdown-wrapper { position: relative; }
+
+.folder-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 100;
+  background: white;
+  border: 1px solid var(--gray-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(60,64,67,0.2);
+  min-width: 160px;
+  padding: 4px 0;
+  display: none;
+}
+
+.folder-dropdown.open { display: block; }
+
+.dropdown-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.1s;
+}
+
+.dropdown-item:hover { background: var(--gray-bg); }
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--gray-border);
+  margin: 4px 0;
+}
+
+/* ── New folder inline input ─────────────────────────────────────────── */
+
+.new-folder-row {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 16px;
+}
+
+.new-folder-row.visible { display: flex; }
+
+.new-folder-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--blue);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+  color: var(--dark);
+}
+
+.new-folder-input:focus { box-shadow: 0 0 0 2px var(--blue-light); }
+
+/* ── Status bar ──────────────────────────────────────────────────────── */
+
+.status-bar {
+  padding: 4px 16px;
+  font-size: 11px;
+  color: var(--gray-text);
+  border-top: 1px solid var(--gray-border);
+  background: var(--gray-bg);
+  flex-shrink: 0;
+}
+
+/* ── Toast ───────────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--dark);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: 200;
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

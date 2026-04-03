@@ -1,25 +1,43 @@
 /**
  * DocLink — OAuth2 helpers.
  *
- * Primary:  chrome.identity.getAuthToken   (works when extension is published
- *           or the Chrome Extension OAuth client is verified)
- * Fallback: chrome.identity.launchWebAuthFlow  (always works for unpacked
- *           extensions — uses the standard OAuth2 implicit token flow)
+ * Two OAuth clients are used:
+ *
+ *  1. EXTENSION_CLIENT_ID  — type "Chrome Extension" in Google Cloud Console
+ *     Used by chrome.identity.getAuthToken (Chrome handles the flow internally)
+ *
+ *  2. DESKTOP_CLIENT_ID    — type "Desktop app" in Google Cloud Console
+ *     Used by launchWebAuthFlow + PKCE when getAuthToken fails (e.g. unpacked
+ *     extensions, development).  Desktop app clients support authorization code
+ *     + PKCE with no client secret.
+ *
+ * How to create DESKTOP_CLIENT_ID:
+ *   Google Cloud Console › APIs & Services › Credentials
+ *   → Create Credentials → OAuth 2.0 Client ID
+ *   → Application type: Desktop app
+ *   → Name: DocLink Desktop
+ *   → Copy the client ID and paste it below as DESKTOP_CLIENT_ID.
+ *   No redirect URI registration is needed — Chrome handles chromiumapp.org.
  */
 
-const CLIENT_ID =
+const EXTENSION_CLIENT_ID =
   '779013325294-81h2mgvd61borau1bfrsviv922cqee8j.apps.googleusercontent.com';
+
+// ← Paste your Desktop app client ID here after creating it in Google Cloud Console
+const DESKTOP_CLIENT_ID = 'YOUR_DESKTOP_APP_CLIENT_ID.apps.googleusercontent.com';
+
 const SCOPE         = 'https://www.googleapis.com/auth/gmail.readonly';
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
-const TOKEN_KEY     = 'doclink_webflow_token'; // stored in chrome.storage.session
+const TOKEN_ENDPOINT= 'https://oauth2.googleapis.com/token';
+const TOKEN_KEY     = 'doclink_token';
 
-/* ── session token cache (for web-flow tokens) ───────────────────────── */
+/* ── token cache (chrome.storage.session when available) ─────────────── */
 
-const session = () => chrome.storage.session ?? chrome.storage.local;
+const store = () => chrome.storage.session ?? chrome.storage.local;
 
 async function getCached() {
   return new Promise(resolve => {
-    session().get(TOKEN_KEY, r => {
+    store().get(TOKEN_KEY, r => {
       const c = r[TOKEN_KEY];
       resolve(c && c.exp > Date.now() ? c.token : null);
     });
@@ -27,15 +45,31 @@ async function getCached() {
 }
 
 async function setCached(token, expiresInSec) {
-  const exp = Date.now() + (expiresInSec - 60) * 1000; // 60 s safety margin
-  return new Promise(resolve => session().set({ [TOKEN_KEY]: { token, exp } }, resolve));
+  const exp = Date.now() + (expiresInSec - 60) * 1000;
+  return new Promise(resolve => store().set({ [TOKEN_KEY]: { token, exp } }, resolve));
 }
 
 async function clearCached() {
-  return new Promise(resolve => session().remove(TOKEN_KEY, resolve));
+  return new Promise(resolve => store().remove(TOKEN_KEY, resolve));
 }
 
-/* ── primary: getAuthToken ────────────────────────────────────────────── */
+/* ── PKCE helpers ────────────────────────────────────────────────────── */
+
+function base64url(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function pkce() {
+  const verifierBytes = crypto.getRandomValues(new Uint8Array(32));
+  const verifier      = base64url(verifierBytes);
+  const challenge     = base64url(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+  );
+  return { verifier, challenge };
+}
+
+/* ── primary: chrome.identity.getAuthToken ───────────────────────────── */
 
 function _getAuthToken(interactive) {
   return new Promise((resolve, reject) => {
@@ -47,55 +81,76 @@ function _getAuthToken(interactive) {
   });
 }
 
-/* ── fallback: launchWebAuthFlow (implicit token flow) ───────────────── */
+/* ── fallback: launchWebAuthFlow + PKCE (Desktop app client) ─────────── */
 
 async function _webAuthFlow(interactive) {
-  // Return cached token if still valid
   const cached = await getCached();
   if (cached) return cached;
-
   if (!interactive) throw new Error('Not signed in');
 
+  if (DESKTOP_CLIENT_ID.startsWith('YOUR_')) {
+    throw new Error(
+      'Web auth fallback not configured. ' +
+      'Create a Desktop app OAuth client in Google Cloud Console and ' +
+      'set DESKTOP_CLIENT_ID in auth/oauth.js.'
+    );
+  }
+
   const redirectUri = `https://${chrome.runtime.id}.chromiumapp.org/`;
-  const url = `${AUTH_ENDPOINT}?${new URLSearchParams({
-    client_id:    CLIENT_ID,
-    redirect_uri: redirectUri,
-    response_type: 'token',
-    scope:         SCOPE,
-    prompt:        'select_account',
+  const { verifier, challenge } = await pkce();
+
+  const authUrl = `${AUTH_ENDPOINT}?${new URLSearchParams({
+    client_id:             DESKTOP_CLIENT_ID,
+    redirect_uri:          redirectUri,
+    response_type:         'code',
+    scope:                 SCOPE,
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+    access_type:           'online',
+    prompt:                'select_account',
   })}`;
 
-  return new Promise((resolve, reject) => {
-    chrome.identity.launchWebAuthFlow({ url, interactive }, responseUrl => {
-      if (chrome.runtime.lastError) {
-        return reject(new Error(chrome.runtime.lastError.message));
-      }
-      if (!responseUrl) {
-        return reject(new Error('Sign-in was cancelled.'));
-      }
-      try {
-        // Token is in the URL hash: #access_token=...&expires_in=3600&...
-        const hash   = new URL(responseUrl).hash.slice(1);
-        const params = new URLSearchParams(hash);
-        const token  = params.get('access_token');
-        const expIn  = parseInt(params.get('expires_in') ?? '3600', 10);
-        if (!token) throw new Error('No access_token in OAuth response.');
-        setCached(token, expIn);
-        resolve(token);
-      } catch (e) {
-        reject(e);
-      }
+  // Step 1: get authorization code via the browser
+  const responseUrl = await new Promise((resolve, reject) => {
+    chrome.identity.launchWebAuthFlow({ url: authUrl, interactive }, url => {
+      chrome.runtime.lastError
+        ? reject(new Error(chrome.runtime.lastError.message))
+        : url
+          ? resolve(url)
+          : reject(new Error('Sign-in was cancelled.'));
     });
   });
+
+  const code = new URL(responseUrl).searchParams.get('code');
+  if (!code) throw new Error('No authorization code in OAuth response.');
+
+  // Step 2: exchange code + PKCE verifier for access token (no client secret needed)
+  const res = await fetch(TOKEN_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id:     DESKTOP_CLIENT_ID,
+      redirect_uri:  redirectUri,
+      grant_type:    'authorization_code',
+      code_verifier: verifier,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(
+      `Token exchange failed: ${data.error_description ?? data.error ?? res.status}`
+    );
+  }
+
+  const token = data.access_token;
+  await setCached(token, data.expires_in ?? 3600);
+  return token;
 }
 
 /* ── public API ──────────────────────────────────────────────────────── */
 
-/**
- * Returns a valid access token.
- * Tries getAuthToken first; if Chrome rejects it (bad client, -106, etc.)
- * falls back to launchWebAuthFlow which always works for unpacked extensions.
- */
 export async function getToken(interactive = true) {
   try {
     return await _getAuthToken(interactive);
@@ -104,28 +159,17 @@ export async function getToken(interactive = true) {
   }
 }
 
-/**
- * Signs the user out: clears both cached web-flow token and Chrome's token.
- */
 export async function revokeToken() {
   await clearCached();
-
   const token = await _getAuthToken(false).catch(() => null);
   if (!token) return;
-
-  await new Promise(resolve => {
-    chrome.identity.removeCachedAuthToken({ token }, resolve);
-  });
+  await new Promise(resolve => chrome.identity.removeCachedAuthToken({ token }, resolve));
   fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`).catch(() => {});
 }
 
-/**
- * True if a valid token exists (without triggering a sign-in prompt).
- */
 export async function isSignedIn() {
   try {
-    const token = await getToken(false);
-    return !!token;
+    return !!(await getToken(false));
   } catch {
     return false;
   }

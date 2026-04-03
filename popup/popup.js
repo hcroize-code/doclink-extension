@@ -15,24 +15,28 @@ let currentView = 'pending'; // 'pending' | folder-id
 
 /* ── DOM refs ────────────────────────────────────────────────────────── */
 
-const authBanner      = document.getElementById('authBanner');
-const appLayout       = document.getElementById('appLayout');
-const signInBtn       = document.getElementById('signInBtn');
-const signOutBtn      = document.getElementById('signOutBtn');
-const syncBtn         = document.getElementById('syncBtn');
-const folderList      = document.getElementById('folderList');
-const pendingCount    = document.getElementById('pendingCount');
-const addFolderBtn    = document.getElementById('addFolderBtn');
-const newFolderRow    = document.getElementById('newFolderRow');
-const newFolderInput  = document.getElementById('newFolderInput');
-const newFolderConfirm= document.getElementById('newFolderConfirm');
-const newFolderCancel = document.getElementById('newFolderCancel');
-const panelTitle      = document.getElementById('panelTitle');
-const panelSubtitle   = document.getElementById('panelSubtitle');
-const docList         = document.getElementById('docList');
-const statusBar       = document.getElementById('statusBar');
-const navInbox        = document.getElementById('navInbox');
-const toast           = document.getElementById('toast');
+const authBanner        = document.getElementById('authBanner');
+const appLayout         = document.getElementById('appLayout');
+const signInBtn         = document.getElementById('signInBtn');
+const signOutBtn        = document.getElementById('signOutBtn');
+const syncBtn           = document.getElementById('syncBtn');
+const folderList        = document.getElementById('folderList');
+const pendingCount      = document.getElementById('pendingCount');
+const addFolderBtn      = document.getElementById('addFolderBtn');
+const newFolderRow      = document.getElementById('newFolderRow');
+const newFolderInput    = document.getElementById('newFolderInput');
+const newFolderConfirm  = document.getElementById('newFolderConfirm');
+const newFolderCancel   = document.getElementById('newFolderCancel');
+const panelTitle        = document.getElementById('panelTitle');
+const panelSubtitle     = document.getElementById('panelSubtitle');
+const docList           = document.getElementById('docList');
+const statusBar         = document.getElementById('statusBar');
+const navInbox          = document.getElementById('navInbox');
+const toast             = document.getElementById('toast');
+const historyScanBtn    = document.getElementById('historyScanBtn');
+const scanProgressPanel = document.getElementById('scanProgressPanel');
+const scanProgressFill  = document.getElementById('scanProgressFill');
+const scanProgressLabel = document.getElementById('scanProgressLabel');
 
 /* ── Boot ────────────────────────────────────────────────────────────── */
 
@@ -41,6 +45,10 @@ const toast           = document.getElementById('toast');
   if (signedIn) {
     showApp();
     await refresh();
+    // Restore scan progress if a history scan is already running
+    chrome.storage.local.get('doclink_scan_progress', r => {
+      if (r.doclink_scan_progress) renderScanProgress(r.doclink_scan_progress);
+    });
     // Trigger a quick scan immediately so the popup is never stale
     chrome.runtime.sendMessage({ type: 'SCAN_NOW' }).catch(() => {});
     startPolling();
@@ -53,9 +61,9 @@ const toast           = document.getElementById('toast');
 
 // Refresh the UI whenever the service worker writes new docs to storage
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.doclink_docs || changes.doclink_folders)) {
-    refresh();
-  }
+  if (area !== 'local') return;
+  if (changes.doclink_docs || changes.doclink_folders) refresh();
+  if (changes.doclink_scan_progress) renderScanProgress(changes.doclink_scan_progress.newValue);
 });
 
 // Poll every 30 s while the popup is open (triggers background quick scan)
@@ -100,6 +108,62 @@ signOutBtn.addEventListener('click', async () => {
 /* ── Scan ────────────────────────────────────────────────────────────── */
 
 syncBtn.addEventListener('click', () => triggerScan());
+
+/* ── History scan ────────────────────────────────────────────────────── */
+
+historyScanBtn.addEventListener('click', async () => {
+  historyScanBtn.disabled = true;
+  historyScanBtn.classList.add('scanning');
+  try {
+    const result = await chrome.runtime.sendMessage({ type: 'SCAN_HISTORY' });
+    if (!result?.ok) showToast('Erreur : ' + (result?.error ?? 'Impossible de démarrer'));
+  } catch (e) {
+    showToast('Erreur : ' + e.message);
+    historyScanBtn.disabled = false;
+    historyScanBtn.classList.remove('scanning');
+  }
+});
+
+/**
+ * Called whenever doclink_scan_progress changes in storage.
+ * Updates the progress bar panel and re-enables the button when done.
+ */
+function renderScanProgress(p) {
+  if (!p) return;
+
+  if (p.active) {
+    scanProgressPanel.style.display = '';
+    scanProgressLabel.textContent =
+      `${p.scanned.toLocaleString()} emails scannés · ${p.found} document(s) trouvé(s)…`;
+    // Keep indeterminate stripe while scanning (we don't know the total)
+    scanProgressFill.classList.remove('has-total');
+    historyScanBtn.disabled = true;
+    historyScanBtn.classList.add('scanning');
+    return;
+  }
+
+  // Scan ended (done or error)
+  historyScanBtn.disabled = false;
+  historyScanBtn.classList.remove('scanning');
+
+  if (p.error) {
+    scanProgressPanel.style.display = 'none';
+    showToast('Erreur : ' + p.error);
+    return;
+  }
+
+  if (p.done) {
+    // Fill bar to 100 % briefly before hiding
+    scanProgressFill.classList.add('has-total');
+    scanProgressFill.style.width = '100%';
+    const msg = p.found > 0
+      ? `${p.found} document(s) trouvé(s) sur ${p.scanned.toLocaleString()} emails`
+      : `Aucun document trouvé (${p.scanned.toLocaleString()} emails scannés)`;
+    scanProgressLabel.textContent = msg;
+    showToast(msg);
+    setTimeout(() => { scanProgressPanel.style.display = 'none'; }, 3000);
+  }
+}
 
 async function triggerScan() {
   syncBtn.classList.add('spinning');

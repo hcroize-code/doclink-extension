@@ -129,6 +129,7 @@ body {
   flex-direction: column;
   background: var(--white);
   flex-shrink: 0;
+  overflow-y: auto;
 }
 
 .sidebar-section {
@@ -450,6 +451,100 @@ body {
 }
 
 .new-folder-input:focus { box-shadow: 0 0 0 2px var(--blue-light); }
+
+/* ── History scan button ─────────────────────────────────────────────── */
+
+.sidebar-bottom {
+  margin-top: auto;
+  border-top: 1px solid var(--gray-border);
+  padding-top: 6px;
+}
+
+.history-scan-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 8px 12px 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--gray-text);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 0 20px 20px 0;
+  margin-right: 8px;
+  transition: background 0.15s, color 0.15s;
+  text-align: left;
+}
+
+.history-scan-btn:hover:not(:disabled) {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.history-scan-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.history-scan-btn.scanning {
+  color: var(--blue);
+  animation: pulse-text 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+/* ── Scan progress panel ─────────────────────────────────────────────── */
+
+.scan-progress-panel {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--gray-border);
+  background: var(--white);
+  flex-shrink: 0;
+}
+
+.scan-progress-bar-track {
+  height: 4px;
+  background: var(--gray-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.scan-progress-bar-fill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+  /* Indeterminate stripe animation while total is unknown */
+  background-image: linear-gradient(
+    90deg,
+    var(--blue) 0%, #5b9cf6 50%, var(--blue) 100%
+  );
+  background-size: 200% 100%;
+  animation: progress-stripe 1.5s linear infinite;
+}
+
+.scan-progress-bar-fill.has-total {
+  animation: none;
+  background-image: none;
+  background: var(--blue);
+}
+
+@keyframes progress-stripe {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.scan-progress-label {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--gray-text);
+}
 
 /* ── Status bar ──────────────────────────────────────────────────────── */
 

@@ -5,8 +5,6 @@
   "description": "Detect Google Docs, Sheets & Slides links shared via Gmail. Organize them into folders without leaving Chrome.",
   "homepage_url": "https://github.com/hcroize-code/doclink-extension",
 
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu5TXzx1IU0CmQHIy5oGjj9zECGwhqI1FlqkJERAF16eGiB9CIVsf22cYpCKks+qZ0td5ohBHOmcK/unBTvQid6kQ11LU9i+w5Jp+BpOoGsktpymQC8+oe37TbLxZDb2YD20NUkigxP3gNC8ueGGJC5bcx1D+XsUZwRb4iiTF6CKMW3DiTYZ1PBbKeVA1ffZj1p2+ZzkdDkFI9JATE6aD0kfdSKvQQc4FyabHjO8I2ajzNjl+L2Y8Kj1JI6BqHIydR3IRnqNCfvzcVKob8CuRfHZ728YhqAhFUKOvHI2LoCJHa314HZM2MaVM3M30zkgZk7I7PETYTX3XwyKofFLX4wIDAQAB",
-
   "permissions": [
     "identity",
     "storage",

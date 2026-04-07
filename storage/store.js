@@ -1,1 +1,126 @@
-const FOLDERS_KEY="doclink_folders",DOCS_KEY="doclink_docs",SYNC_KEY="doclink_lastSyncAt",HISTORY_KEY="doclink_historyId";function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}async function get(t){return new Promise((e,n)=>{chrome.storage.local.get(t,o=>{chrome.runtime.lastError?n(chrome.runtime.lastError):e(o[t])})})}async function set(t,e){return new Promise((n,o)=>{chrome.storage.local.set({[t]:e},()=>{chrome.runtime.lastError?o(chrome.runtime.lastError):n()})})}export async function getFolders(){return await get(FOLDERS_KEY)??[]}export async function createFolder(t){const e=await getFolders(),n={id:uid(),name:t.trim(),createdAt:(new Date).toISOString()};return await set(FOLDERS_KEY,[...e,n]),n}export async function renameFolder(t,e){const n=await getFolders();await set(FOLDERS_KEY,n.map(n=>n.id===t?{...n,name:e.trim()}:n))}export async function deleteFolder(t){const[e,n]=await Promise.all([getFolders(),getDocs()]);await set(DOCS_KEY,n.map(e=>e.folderId===t?{...e,folderId:null}:e)),await set(FOLDERS_KEY,e.filter(e=>e.id!==t))}export async function getDocs(){return await get(DOCS_KEY)??[]}export async function getPendingDocs(){return(await getDocs()).filter(t=>null===t.folderId||void 0===t.folderId)}export async function getDocsByFolder(t){return(await getDocs()).filter(e=>e.folderId===t)}export async function upsertDocs(t){const e=await getDocs(),n=new Set(e.map(t=>`${t.emailId}::${t.url}`)),o=t.filter(t=>!n.has(`${t.emailId}::${t.url}`)).map(t=>({...t,id:uid(),folderId:null,detectedAt:(new Date).toISOString()}));return o.length>0&&await set(DOCS_KEY,[...e,...o]),o.length}export async function moveDocToFolder(t,e){const n=await getDocs();await set(DOCS_KEY,n.map(n=>n.id===t?{...n,folderId:e}:n))}export async function removeDoc(t){const e=await getDocs();await set(DOCS_KEY,e.filter(e=>e.id!==t))}export async function getLastSyncAt(){return await get(SYNC_KEY)??null}export async function setLastSyncAt(t){await set(SYNC_KEY,t)}export async function getLastHistoryId(){return await get(HISTORY_KEY)??null}export async function setLastHistoryId(t){await set(HISTORY_KEY,String(t))}
+/**
+ * DocLink — Chrome Storage abstraction.
+ *
+ * Schema:
+ *   folders: [{ id, name, createdAt }]
+ *   docs:    [{ id, title, url, type, emailId, emailSubject, sender, detectedAt, folderId|null }]
+ *   lastSyncAt: ISO string
+ */
+
+const FOLDERS_KEY  = 'doclink_folders';
+const DOCS_KEY     = 'doclink_docs';
+const SYNC_KEY     = 'doclink_lastSyncAt';
+const HISTORY_KEY  = 'doclink_historyId';
+
+/* ── helpers ─────────────────────────────────────────────────────────── */
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+async function get(key) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(key, (result) => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve(result[key]);
+    });
+  });
+}
+
+async function set(key, value) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [key]: value }, () => {
+      if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+      else resolve();
+    });
+  });
+}
+
+/* ── folders ─────────────────────────────────────────────────────────── */
+
+export async function getFolders() {
+  return (await get(FOLDERS_KEY)) ?? [];
+}
+
+export async function createFolder(name) {
+  const folders = await getFolders();
+  const folder  = { id: uid(), name: name.trim(), createdAt: new Date().toISOString() };
+  await set(FOLDERS_KEY, [...folders, folder]);
+  return folder;
+}
+
+export async function renameFolder(id, name) {
+  const folders = await getFolders();
+  await set(FOLDERS_KEY, folders.map(f => f.id === id ? { ...f, name: name.trim() } : f));
+}
+
+export async function deleteFolder(id) {
+  const [folders, docs] = await Promise.all([getFolders(), getDocs()]);
+  // Move docs from deleted folder back to pending
+  await set(DOCS_KEY, docs.map(d => d.folderId === id ? { ...d, folderId: null } : d));
+  await set(FOLDERS_KEY, folders.filter(f => f.id !== id));
+}
+
+/* ── docs ────────────────────────────────────────────────────────────── */
+
+export async function getDocs() {
+  return (await get(DOCS_KEY)) ?? [];
+}
+
+export async function getPendingDocs() {
+  const docs = await getDocs();
+  return docs.filter(d => d.folderId === null || d.folderId === undefined);
+}
+
+export async function getDocsByFolder(folderId) {
+  const docs = await getDocs();
+  return docs.filter(d => d.folderId === folderId);
+}
+
+/**
+ * Add docs detected from Gmail (deduped by url + emailId).
+ * @param {Array} newDocs  — raw doc objects from the scanner
+ */
+export async function upsertDocs(newDocs) {
+  const existing = await getDocs();
+  const existingKeys = new Set(existing.map(d => `${d.emailId}::${d.url}`));
+
+  const toAdd = newDocs
+    .filter(d => !existingKeys.has(`${d.emailId}::${d.url}`))
+    .map(d => ({ ...d, id: uid(), folderId: null, detectedAt: new Date().toISOString() }));
+
+  if (toAdd.length > 0) {
+    await set(DOCS_KEY, [...existing, ...toAdd]);
+  }
+  return toAdd.length;
+}
+
+export async function moveDocToFolder(docId, folderId) {
+  const docs = await getDocs();
+  await set(DOCS_KEY, docs.map(d => d.id === docId ? { ...d, folderId } : d));
+}
+
+export async function removeDoc(docId) {
+  const docs = await getDocs();
+  await set(DOCS_KEY, docs.filter(d => d.id !== docId));
+}
+
+/* ── sync timestamp ──────────────────────────────────────────────────── */
+
+export async function getLastSyncAt() {
+  return (await get(SYNC_KEY)) ?? null;
+}
+
+export async function setLastSyncAt(iso) {
+  await set(SYNC_KEY, iso);
+}
+
+/* ── Gmail history ID (for incremental scans) ────────────────────────── */
+
+export async function getLastHistoryId() {
+  return (await get(HISTORY_KEY)) ?? null;
+}
+
+export async function setLastHistoryId(id) {
+  await set(HISTORY_KEY, String(id));
+}
